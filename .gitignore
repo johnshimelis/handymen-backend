@@ -1,0 +1,11 @@
+node_modules/
+.env
+uploads/
+*.log
+.DS_Store
+create-env.js
+VERIFY_GOOGLE_OAUTH.md
+DEBUG_GOOGLE_OAUTH.md
+GOOGLE_OAUTH_FIX.md
+GOOGLE_OAUTH_SETUP.md
+
