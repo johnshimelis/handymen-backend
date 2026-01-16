@@ -18,7 +18,7 @@ router.use(authenticate);
 
 // Customer routes
 router.post('/', authorize('customer', 'handyman'), createJob);
-router.get('/customer/my-jobs', authorize('customer'), getCustomerJobs);
+router.get('/customer/my-jobs', authorize('customer', 'handyman', 'admin'), getCustomerJobs);
 router.put('/:jobId/cancel', authorize('customer'), cancelJob);
 
 // Handyman routes
