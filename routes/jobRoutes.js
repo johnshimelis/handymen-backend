@@ -17,7 +17,7 @@ const router = express.Router();
 router.use(authenticate);
 
 // Customer routes
-router.post('/', authorize('customer'), createJob);
+router.post('/', authorize('customer', 'handyman'), createJob);
 router.get('/customer/my-jobs', authorize('customer'), getCustomerJobs);
 router.put('/:jobId/cancel', authorize('customer'), cancelJob);
 
