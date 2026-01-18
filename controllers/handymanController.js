@@ -216,32 +216,44 @@ export const searchHandymen = async (req, res) => {
       minRating = 0,
       maxPrice,
       sortBy = 'distance', // distance, rating, price
+      locationName, // New parameter for text-based location search
     } = req.query;
 
-    if (!latitude || !longitude) {
-      return res.status(400).json({
-        success: false,
-        message: 'Latitude and longitude are required',
-      });
-    }
-
-    const lat = parseFloat(latitude);
-    const lon = parseFloat(longitude);
-    const radius = parseFloat(maxDistance) * 1000; // Convert km to meters
-
     // Build query
-    const query = {
-      isActive: true,
-      'location.coordinates': {
+    const query = { isActive: true };
+
+    // 1. Geography-based search (if coordinates provided)
+    if (latitude && longitude) {
+      const lat = parseFloat(latitude);
+      const lon = parseFloat(longitude);
+      const radius = parseFloat(maxDistance) * 1000; // Convert km to meters
+
+      query['location.coordinates'] = {
         $near: {
           $geometry: {
             type: 'Point',
-            coordinates: [lon, lat], // MongoDB uses [longitude, latitude]
+            coordinates: [lon, lat],
           },
           $maxDistance: radius,
         },
-      },
-    };
+      };
+    }
+    // 2. Text-based location search (if no coordinates but locationName provided)
+    else if (locationName) {
+      const searchRegex = new RegExp(locationName, 'i');
+      query['$or'] = [
+        { 'location.areaName': searchRegex },
+        { 'location.address': searchRegex },
+        { 'location.city': searchRegex },
+      ];
+    }
+    // 3. Fallback: Require either coordinates or locationName
+    else {
+      return res.status(400).json({
+        success: false,
+        message: 'Either location coordinates or location name is required',
+      });
+    }
 
     // Filter by category
     if (category) {
@@ -254,6 +266,7 @@ export const searchHandymen = async (req, res) => {
     }
 
     // Execute query
+    // Execute query
     let handymen = await Handyman.find(query)
       .populate('userId', 'fullName phoneNumber profilePhoto')
       .limit(50);
@@ -262,7 +275,14 @@ export const searchHandymen = async (req, res) => {
     const handymenWithDistance = handymen
       .map((handyman) => {
         const [handymanLon, handymanLat] = handyman.location.coordinates;
-        const distance = calculateDistance(lat, lon, handymanLat, handymanLon);
+        let distance = 0;
+
+        // Only calculate distance if search coordinates were provided
+        if (latitude && longitude) {
+          const lat = parseFloat(latitude);
+          const lon = parseFloat(longitude);
+          distance = calculateDistance(lat, lon, handymanLat, handymanLon);
+        }
 
         return {
           ...handyman.toObject(),
@@ -278,7 +298,7 @@ export const searchHandymen = async (req, res) => {
       });
 
     // Sort results
-    if (sortBy === 'distance') {
+    if (sortBy === 'distance' && latitude && longitude) {
       handymenWithDistance.sort((a, b) => a.distance - b.distance);
     } else if (sortBy === 'rating') {
       handymenWithDistance.sort((a, b) => (b.rating?.average || 0) - (a.rating?.average || 0));
