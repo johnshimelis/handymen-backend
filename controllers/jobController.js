@@ -20,8 +20,15 @@ export const createJob = async (req, res) => {
       });
     }
 
-    // Check if handyman exists and is active
-    const handyman = await Handyman.findById(handymanId);
+    // Check if handyman exists and is active.
+    // NOTE: Some clients only have the handyman's userId; support both:
+    // - handymanId === Handyman._id
+    // - handymanId === Handyman.userId (User._id)
+    let handyman = await Handyman.findById(handymanId);
+    if (!handyman) {
+      handyman = await Handyman.findOne({ userId: handymanId });
+    }
+
     if (!handyman || !handyman.isActive) {
       return res.status(404).json({
         success: false,
@@ -44,7 +51,7 @@ export const createJob = async (req, res) => {
     // Create job
     const job = new Job({
       customerId: req.user._id,
-      handymanId,
+      handymanId: handyman._id,
       category,
       description: description.trim(),
       location: {

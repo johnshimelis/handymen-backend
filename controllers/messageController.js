@@ -170,3 +170,95 @@ export const getUnreadCountsByJobs = async (req, res) => {
         });
     }
 };
+
+/**
+ * Get conversation list for current user (job-threaded chats).
+ * This is message-based (not job-based) so it works even if the job list endpoints
+ * don't include a given job for one participant.
+ */
+export const getMyConversations = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        const conversations = await Message.aggregate([
+            {
+                $match: {
+                    $or: [
+                        { sender: userId },
+                        { recipient: userId },
+                    ],
+                },
+            },
+            // Ensure $first in the group picks the newest message per job
+            { $sort: { createdAt: -1 } },
+            {
+                $group: {
+                    _id: '$jobId',
+                    lastMessageText: { $first: '$text' },
+                    lastMessageAt: { $first: '$createdAt' },
+                    lastSender: { $first: '$sender' },
+                    lastRecipient: { $first: '$recipient' },
+                },
+            },
+            {
+                $addFields: {
+                    participantId: {
+                        $cond: [
+                            { $eq: ['$lastSender', userId] },
+                            '$lastRecipient',
+                            '$lastSender',
+                        ],
+                    },
+                    jobId: '$_id',
+                },
+            },
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'participantId',
+                    foreignField: '_id',
+                    as: 'participant',
+                },
+            },
+            { $unwind: { path: '$participant', preserveNullAndEmptyArrays: true } },
+            {
+                $lookup: {
+                    from: 'jobs',
+                    localField: 'jobId',
+                    foreignField: '_id',
+                    as: 'job',
+                },
+            },
+            { $unwind: { path: '$job', preserveNullAndEmptyArrays: true } },
+            {
+                $project: {
+                    _id: 0,
+                    jobId: 1,
+                    participantId: 1,
+                    participantName: { $ifNull: ['$participant.fullName', 'User'] },
+                    participantAvatar: '$participant.profilePhoto',
+                    lastMessageText: 1,
+                    lastMessageAt: 1,
+                    jobCategory: {
+                        $ifNull: ['$job.description', '$job.category'],
+                    },
+                    jobStatus: '$job.status',
+                },
+            },
+            { $sort: { lastMessageAt: -1 } },
+            { $limit: 200 },
+        ]);
+
+        res.status(200).json({
+            success: true,
+            count: conversations.length,
+            conversations,
+        });
+    } catch (error) {
+        console.error('Get My Conversations Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get conversations',
+        });
+    }
+};
