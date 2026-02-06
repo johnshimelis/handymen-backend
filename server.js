@@ -4,7 +4,6 @@ dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import session from 'express-session';
 import connectDB from './config/database.js';
 import passport from './config/passport.js';
 
@@ -50,18 +49,8 @@ app.use(
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Session configuration for Passport
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || process.env.JWT_SECRET,
-    resave: false,
-    saveUninitialized: false,
-  })
-);
-
 // Initialize Passport
 app.use(passport.initialize());
-app.use(passport.session());
 
 // Health check route
 app.get('/api/health', (req, res) => {

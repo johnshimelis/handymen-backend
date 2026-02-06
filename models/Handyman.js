@@ -149,8 +149,9 @@ const handymanSchema = new mongoose.Schema(
   }
 );
 
-// GeoJSON index for location-based queries
-handymanSchema.index({ 'location.coordinates': '2dsphere' });
+// NOTE:
+// `location.coordinates` already declares `index: '2dsphere'` at the field level.
+// Defining a second schema index causes duplicate-index warnings in production logs.
 
 // Index for skill categories
 handymanSchema.index({ skillCategories: 1 });

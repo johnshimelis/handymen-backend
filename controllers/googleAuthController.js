@@ -14,7 +14,8 @@ export const googleAuth = (req, res, next) => {
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     state: state,
-    callbackURL: callbackUrl
+    callbackURL: callbackUrl,
+    session: false,
   })(req, res, next);
 };
 
@@ -65,15 +66,11 @@ export const googleCallback = (req, res, next) => {
       // Determine if this is a new user
       const isNewUser = !user.phoneNumber;
 
-      res.redirect(`${baseUrl}/auth/callback?token=${token}&user=${encodeURIComponent(JSON.stringify({
-        id: user._id,
-        phoneNumber: user.phoneNumber,
-        fullName: user.fullName,
-        email: user.email,
-        role: user.role,
-        profilePhoto: user.profilePhoto,
-        isVerified: user.isVerified,
-      }))}&newUser=${isNewUser}`);
+      // IMPORTANT:
+      // Do NOT put large user objects (especially Google profile photo URLs) in the query string.
+      // Many proxies/CDNs will reject long URLs with HTTP 414.
+      // The frontend can fetch `/api/auth/profile` using the token.
+      res.redirect(`${baseUrl}/auth/callback?token=${token}&newUser=${isNewUser}`);
     } catch (tokenError) {
       console.error('Token generation error:', tokenError);
       return res.redirect(`${baseUrl}/login?error=token_error`);

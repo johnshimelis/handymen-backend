@@ -71,8 +71,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Index for faster phone number lookups (sparse allows multiple null values)
-userSchema.index({ phoneNumber: 1 }, { sparse: true, unique: true });
+// NOTE:
+// `phoneNumber` already has `unique: true` + `sparse: true` at the field level,
+// which creates the needed unique index. Defining an additional schema index
+// causes duplicate-index warnings in production logs.
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {
