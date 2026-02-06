@@ -113,8 +113,9 @@ export const getCustomerJobs = async (req, res) => {
           select: 'fullName profilePhoto phoneNumber'
         }
       })
-      .sort({ createdAt: -1 })
-      .limit(50);
+      // Important for chat list: order by last activity (message) rather than job creation time.
+      .sort({ lastMessageAt: -1, updatedAt: -1, createdAt: -1 })
+      .limit(200);
 
     res.status(200).json({
       success: true,
@@ -154,8 +155,9 @@ export const getHandymanJobs = async (req, res) => {
 
     const jobs = await Job.find(query)
       .populate('customerId', 'fullName phoneNumber profilePhoto')
-      .sort({ createdAt: -1 })
-      .limit(50);
+      // Important for chat list: order by last activity (message) rather than job creation time.
+      .sort({ lastMessageAt: -1, updatedAt: -1, createdAt: -1 })
+      .limit(200);
 
     res.status(200).json({
       success: true,
