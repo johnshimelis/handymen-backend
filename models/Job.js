@@ -93,6 +93,16 @@ const jobSchema = new mongoose.Schema(
       enum: ['cash', 'mobile_money', 'bank_transfer'],
       default: 'cash',
     },
+
+    // Chat metadata (used to order conversations in chat list)
+    lastMessageText: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    lastMessageAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

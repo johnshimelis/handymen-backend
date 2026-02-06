@@ -27,6 +27,15 @@ export const sendMessage = async (req, res) => {
 
         await message.save();
 
+        // Touch the job with the latest message so both sides can see the chat at the top of the list
+        // (chat list is currently job-based).
+        await Job.findByIdAndUpdate(jobId, {
+            $set: {
+                lastMessageText: text,
+                lastMessageAt: message.createdAt || new Date(),
+            },
+        });
+
         // Create notification for the recipient ONLY if it's not the sender themselves
         if (String(recipientId) !== String(senderId)) {
             const sender = await User.findById(senderId);
