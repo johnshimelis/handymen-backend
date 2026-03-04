@@ -219,6 +219,8 @@ export const searchHandymen = async (req, res) => {
       locationName, // New parameter for text-based location search
     } = req.query;
 
+    const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
     // Build query
     const query = { isActive: true };
 
@@ -240,11 +242,24 @@ export const searchHandymen = async (req, res) => {
     }
     // 2. Text-based location search (if no coordinates but locationName provided)
     else if (locationName) {
-      const searchRegex = new RegExp(locationName, 'i');
+      // Important: location strings often come like "Bole, Addis Ababa" or "Ferensay Legasion".
+      // If we build a regex from the full string, it may not match stored `areaName` values like "Bole".
+      // So we tokenize and match ANY meaningful part of the input.
+      const raw = String(locationName).trim();
+      const normalized = raw.replace(/\s+/g, ' ');
+      const stopWords = new Set(['', 'the', 'of', 'in', 'at', 'and', 'or', 'city', 'region', 'zone', 'subcity']);
+      const parts = normalized
+        .split(/[,\-\/]/g)
+        .flatMap((p) => p.trim().split(/\s+/g))
+        .map((p) => p.trim())
+        .filter((p) => p.length >= 3 && !stopWords.has(p.toLowerCase()));
+
+      const uniqueParts = [...new Set(parts)];
+      const pattern = uniqueParts.length > 0 ? uniqueParts.map(escapeRegex).join('|') : escapeRegex(normalized);
+      const searchRegex = new RegExp(pattern, 'i');
       query['$or'] = [
         { 'location.areaName': searchRegex },
         { 'location.address': searchRegex },
-        { 'location.city': searchRegex },
       ];
     }
     // 3. Fallback: Require either coordinates or locationName
@@ -255,9 +270,30 @@ export const searchHandymen = async (req, res) => {
       });
     }
 
-    // Filter by category
+    // Filter by category (free-text insensitive matching across categories and description)
     if (category) {
-      query.skillCategories = category;
+      const catRegex = new RegExp(escapeRegex(String(category).trim()), 'i');
+
+      // If we already have an $or (from locationName), we must use $and to combine them.
+      const searchCondition = {
+        $or: [
+          { skillCategories: catRegex },
+          { serviceDescription: catRegex }
+        ]
+      };
+
+      if (query['$or']) {
+        if (!query['$and']) query['$and'] = [];
+        // Push the location $or
+        query['$and'].push({ $or: query['$or'] });
+        delete query['$or'];
+        // Push the category $or
+        query['$and'].push(searchCondition);
+      } else if (query['$and']) {
+        query['$and'].push(searchCondition);
+      } else {
+        query['$or'] = searchCondition.$or;
+      }
     }
 
     // Filter by rating
