@@ -242,25 +242,27 @@ export const searchHandymen = async (req, res) => {
     }
     // 2. Text-based location search (if no coordinates but locationName provided)
     else if (locationName) {
-      // Important: location strings often come like "Bole, Addis Ababa" or "Ferensay Legasion".
-      // If we build a regex from the full string, it may not match stored `areaName` values like "Bole".
-      // So we tokenize and match ANY meaningful part of the input.
       const raw = String(locationName).trim();
-      const normalized = raw.replace(/\s+/g, ' ');
-      const stopWords = new Set(['', 'the', 'of', 'in', 'at', 'and', 'or', 'city', 'region', 'zone', 'subcity']);
-      const parts = normalized
-        .split(/[,\-\/]/g)
-        .flatMap((p) => p.trim().split(/\s+/g))
-        .map((p) => p.trim())
-        .filter((p) => p.length >= 3 && !stopWords.has(p.toLowerCase()));
 
-      const uniqueParts = [...new Set(parts)];
-      const pattern = uniqueParts.length > 0 ? uniqueParts.map(escapeRegex).join('|') : escapeRegex(normalized);
-      const searchRegex = new RegExp(pattern, 'i');
-      query['$or'] = [
-        { 'location.areaName': searchRegex },
-        { 'location.address': searchRegex },
-      ];
+      // If the user searches for the entire city, bypass specific area filtering
+      // since the current app scope is entirely within Addis Ababa.
+      if (raw.toLowerCase() !== 'addis ababa' && raw.toLowerCase() !== 'addis ababa (anywhere)') {
+        const normalized = raw.replace(/\s+/g, ' ');
+        const stopWords = new Set(['', 'the', 'of', 'in', 'at', 'and', 'or', 'city', 'region', 'zone', 'subcity']);
+        const parts = normalized
+          .split(/[,\-\/]/g)
+          .flatMap((p) => p.trim().split(/\s+/g))
+          .map((p) => p.trim())
+          .filter((p) => p.length >= 3 && !stopWords.has(p.toLowerCase()));
+
+        const uniqueParts = [...new Set(parts)];
+        const pattern = uniqueParts.length > 0 ? uniqueParts.map(escapeRegex).join('|') : escapeRegex(normalized);
+        const searchRegex = new RegExp(pattern, 'i');
+        query['$or'] = [
+          { 'location.areaName': searchRegex },
+          { 'location.address': searchRegex },
+        ];
+      }
     }
     // 3. Fallback: Require either coordinates or locationName
     else {
@@ -370,9 +372,19 @@ export const getHandymanById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const handyman = await Handyman.findById(id)
-      .populate('userId', 'fullName phoneNumber profilePhoto')
-      .select('-availability'); // Hide availability details from public
+    // Check if the provided ID holds a Handyman doc _id or a User doc userId
+    // Mongoose findOne with $or handles this cleanly
+    let handyman;
+    try {
+      handyman = await Handyman.findOne({ $or: [{ _id: id }, { userId: id }] })
+        .populate('userId', 'fullName phoneNumber profilePhoto')
+        .select('-availability'); // Hide availability details from public
+    } catch {
+      // Fallback if ID is poorly formatted but might match custom schema logic
+      handyman = await Handyman.findOne({ userId: id })
+        .populate('userId', 'fullName phoneNumber profilePhoto')
+        .select('-availability');
+    }
 
     if (!handyman) {
       return res.status(404).json({

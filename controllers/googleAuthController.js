@@ -31,12 +31,22 @@ export const googleCallback = (req, res, next) => {
     let baseUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
 
     if (req.query.state) {
+      const mobileAllowedRedirects = (process.env.MOBILE_APP_ALLOWED_REDIRECTS || '')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean);
+
       const allowedOrigins = [
         'http://localhost:8080',
         'http://localhost:5173',
         'https://agelgay.com',
         'https://www.agelgay.com',
-        process.env.FRONTEND_URL
+        process.env.FRONTEND_URL,
+
+        // Mobile deep-link base (used as `state` so we can redirect back into the app)
+        // Example state: agelgay://auth  -> redirect: agelgay://auth/auth/callback?token=...
+        'agelgay://auth',
+        ...mobileAllowedRedirects,
       ].filter(Boolean);
 
       // Validate the state URL
@@ -48,15 +58,19 @@ export const googleCallback = (req, res, next) => {
       }
     }
 
+    const isMobileDeepLink = typeof baseUrl === 'string' && baseUrl.startsWith('agelgay://');
+
     // Log errors for debugging
     if (err) {
       console.error('Google OAuth Error:', err);
-      return res.redirect(`${baseUrl}/login?error=auth_failed&details=${encodeURIComponent(err.message)}`);
+      const loginPath = isMobileDeepLink ? '/auth/login' : '/login';
+      return res.redirect(`${baseUrl}${loginPath}?error=auth_failed&details=${encodeURIComponent(err.message)}`);
     }
 
     if (!user) {
       console.error('Google OAuth: No user returned');
-      return res.redirect(`${baseUrl}/login?error=user_not_found`);
+      const loginPath = isMobileDeepLink ? '/auth/login' : '/login';
+      return res.redirect(`${baseUrl}${loginPath}?error=user_not_found`);
     }
 
     try {
@@ -73,7 +87,8 @@ export const googleCallback = (req, res, next) => {
       res.redirect(`${baseUrl}/auth/callback?token=${token}&newUser=${isNewUser}`);
     } catch (tokenError) {
       console.error('Token generation error:', tokenError);
-      return res.redirect(`${baseUrl}/login?error=token_error`);
+      const loginPath = isMobileDeepLink ? '/auth/login' : '/login';
+      return res.redirect(`${baseUrl}${loginPath}?error=token_error`);
     }
   })(req, res, next);
 };

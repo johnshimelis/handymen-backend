@@ -6,13 +6,14 @@ import {
   searchHandymen,
   getHandymanById,
 } from '../controllers/handymanController.js';
-import { getServiceCategories } from '../controllers/serviceController.js';
+import { getServiceCategories, getSkillOptions } from '../controllers/serviceController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Public routes
 router.get('/categories', getServiceCategories);
+router.get('/skills', getSkillOptions);
 router.get('/search', searchHandymen);
 router.get('/:id', getHandymanById);
 
