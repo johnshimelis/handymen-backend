@@ -7,11 +7,11 @@ export const getServiceCategories = async (req, res) => {
   try {
     // Get all unique skill categories from handymen
     const handymen = await Handyman.find({ isActive: true }).select('skillCategories rating totalJobs basePrice priceType');
-    
+
     // Aggregate categories with stats
     const categoryStats = {};
     const categoryHasInAgreement = {}; // Track if any handyman in category uses "in_agreement"
-    
+
     handymen.forEach(handyman => {
       handyman.skillCategories.forEach(category => {
         if (!categoryStats[category]) {
@@ -25,7 +25,7 @@ export const getServiceCategories = async (req, res) => {
           };
           categoryHasInAgreement[category] = false;
         }
-        
+
         categoryStats[category].handymenCount += 1;
         categoryStats[category].totalJobs += handyman.totalJobs || 0;
         if (handyman.rating?.average) {
@@ -41,19 +41,19 @@ export const getServiceCategories = async (req, res) => {
         }
       });
     });
-    
+
     // Calculate averages and format
     const categories = Object.values(categoryStats).map(stat => ({
       category: stat.category,
       handymenCount: stat.handymenCount,
       totalJobs: stat.totalJobs,
-      avgRating: stat.ratings.length > 0 
+      avgRating: stat.ratings.length > 0
         ? (stat.ratings.reduce((a, b) => a + b, 0) / stat.ratings.length).toFixed(1)
         : 0,
       minPrice: stat.minPrice === Infinity ? 0 : stat.minPrice,
       hasInAgreement: categoryHasInAgreement[stat.category] || false,
     }));
-    
+
     res.status(200).json({
       success: true,
       categories,
@@ -68,31 +68,6 @@ export const getServiceCategories = async (req, res) => {
   }
 };
 
-/**
- * Get skill/category options (distinct values in DB)
- * Used by mobile/web registration & filters.
- */
-export const getSkillOptions = async (req, res) => {
-  try {
-    const skills = await Handyman.distinct('skillCategories', { isActive: true });
-    const normalized = (skills || [])
-      .map((s) => (s ?? '').toString().trim())
-      .filter((s) => s.length > 0);
-    const unique = [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
-
-    return res.status(200).json({
-      success: true,
-      skills: unique,
-    });
-  } catch (error) {
-    console.error('Get Skill Options Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to get skill options',
-      error: error.message,
-    });
-  }
-};
 
 /**
  * Get all skill categories (for registration / filters).
